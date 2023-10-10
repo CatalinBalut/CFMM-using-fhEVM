@@ -1,0 +1,67 @@
+name: "CI"
+
+env:
+  DOTENV_CONFIG_PATH: "./.env.example"
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  ci:
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: "Check out the repo"
+        uses: "actions/checkout@v3"
+
+      - name: "Install Pnpm"
+        uses: "pnpm/action-setup@v2"
+        with:
+          version: "8"
+
+      - name: "Install Node.js"
+        uses: "actions/setup-node@v3"
+        with:
+          cache: "pnpm"
+          node-version: "lts/*"
+
+      - name: "Install the dependencies"
+        run: "pnpm install"
+
+      - name: "Lint the code"
+        run: "pnpm lint"
+
+      - name: "Add lint summary"
+        run: |
+          echo "## Lint results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
+
+      - name: "Compile the contracts and generate the TypeChain bindings"
+        run: "pnpm typechain"
+
+      #      - name: "Test the contracts and generate the coverage report"
+      #        run: "pnpm coverage"
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@49ed152c8eca782a232dede0303416e8f356c37b
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "CI test"
+        run: |
+          pnpm fhevm:start &> fhevm.log &
+          tail -f fhevm.log | sed '/Starting JSON WebSocket server/ q'
+
+          pnpm fhevm:faucet
+          pnpm test
+          pnpm fhevm:stop || true
+
+      - name: "Add test summary"
+        run: |
+          echo "## Test results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
