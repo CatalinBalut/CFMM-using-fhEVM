@@ -51,7 +51,7 @@ describe("EncryptedCFMM", function () {
   });
 
   it("should add liquidity", async function () {
-    let encryptedAmount = this.instancesERC20A.alice.encrypt32(5000);
+    const encryptedAmount = this.instancesERC20A.alice.encrypt32(5000);
     await createTransaction(this.erc20A.mint, encryptedAmount);
     await createTransaction(this.erc20B.mint, encryptedAmount);
 
@@ -78,7 +78,7 @@ describe("EncryptedCFMM", function () {
   });
 
   it("should do a swap:", async function () {
-    let encryptedAmount = this.instancesERC20A.alice.encrypt32(1);
+    const encryptedAmount = this.instancesERC20A.alice.encrypt32(1);
     await createTransaction(this.erc20A.mint, encryptedAmount);
     await createTransaction(this.erc20B.mint, encryptedAmount);
 

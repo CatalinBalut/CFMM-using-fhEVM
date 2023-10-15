@@ -51,7 +51,7 @@ describe("EncryptedCFMM", function () {
   });
 
   it("should add liquidity", async function () {
-    let encryptedAmount = this.instancesERC20A.alice.encrypt32(5000);
+    const encryptedAmount = this.instancesERC20A.alice.encrypt32(5000);
     await createTransaction(this.erc20A.mint, encryptedAmount);
     await createTransaction(this.erc20B.mint, encryptedAmount);
 
@@ -78,9 +78,9 @@ describe("EncryptedCFMM", function () {
   });
 
   it.only("should do a swap:", async function () {
-    let encryptedAmount = this.instancesERC20A.alice.encrypt32(50000);
-    let encryptedLiquidityAmount = this.instancesERC20A.alice.encrypt32(5000);
-    let encryptedSwapAmount = this.instancesERC20A.alice.encrypt32(700);
+    const encryptedAmount = this.instancesERC20A.alice.encrypt32(50000);
+    const encryptedLiquidityAmount = this.instancesERC20A.alice.encrypt32(5000);
+    const encryptedSwapAmount = this.instancesERC20A.alice.encrypt32(700);
     await createTransaction(this.erc20A.mint, encryptedLiquidityAmount);
     await createTransaction(this.erc20B.mint, encryptedLiquidityAmount);
 
@@ -94,8 +94,8 @@ describe("EncryptedCFMM", function () {
     );
     await transaction.wait();
 
-    await createTransaction(this.cfmmv1.setDiv, encryptedSwapAmount);
-    await transaction.wait();
+    const tx = await createTransaction(this.cfmmv1.setDiv, encryptedSwapAmount);
+    await tx.wait();
     // // Call the method
     // const token = this.instancesCFMMv1.alice.getTokenSignature(this.contractAddressCFMMv1) || {
     //   signature: "",
