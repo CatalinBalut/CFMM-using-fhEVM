@@ -27,6 +27,7 @@ describe("EncryptedERC20", function () {
       signature: "",
       publicKey: "",
     };
+
     const encryptedBalance = await this.erc20.balanceOf(token.publicKey, token.signature);
     // Decrypt the balance
     const balance = this.instances.alice.decrypt(this.contractAddress, encryptedBalance);

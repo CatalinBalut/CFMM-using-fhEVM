@@ -73,6 +73,9 @@ const config: HardhatUserConfig = {
   namedAccounts: {
     deployer: 0,
   },
+  // mocha: {
+  //   timeout: 180000,
+  // },
   etherscan: {
     apiKey: {
       arbitrumOne: process.env.ARBISCAN_API_KEY || "",
