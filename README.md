@@ -1,3 +1,11 @@
+# Encrypted Constant Product Automated Market - fhEVM
+
+## note: this is a prototype
+
+This smart contract leverages the power of fhEVM to enable secure and private automated market-making on the blockchain.
+
+The smart contract makes slight privacy concessions to accommodate the gas limit constraint of 10 million.
+
 # Hardhat Template [![Open in Gitpod][gitpod-badge]][gitpod] [![Github Actions][gha-badge]][gha] [![Hardhat][hardhat-badge]][hardhat] [![License: MIT][license-badge]][license]
 
 [gitpod]: https://gitpod.io/#https://github.com/zama-ai/fhevm-hardhat-template
