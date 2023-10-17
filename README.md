@@ -1,4 +1,4 @@
-# Encrypted Constant Product Automated Market - fhEVM
+# Encrypted Constant Product Automated Market Maker - fhEVM
 
 ## note: this is a prototype
 
