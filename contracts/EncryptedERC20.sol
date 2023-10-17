@@ -16,7 +16,7 @@ contract EncryptedERC20 is EIP712WithModifier {
     bytes32 private DOMAIN_SEPARATOR;
 
     // A mapping from address to an encrypted balance.
-    mapping(address => euint32) internal balances;
+    mapping(address => euint32) public balances;
 
     // A mapping of the form mapping(owner => mapping(spender => allowance)).
     mapping(address => mapping(address => euint32)) internal allowances;

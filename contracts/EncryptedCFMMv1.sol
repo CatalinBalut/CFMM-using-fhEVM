@@ -48,30 +48,24 @@ contract EncryptedCFMMv1 is EIP712WithModifier {
 
     function swap(EncryptedERC20 token, bytes calldata amountIn) public {
         euint32 amount = TFHE.asEuint32(amountIn);
+        // reserveA = TFHE.asEuint32(1);
+        // reserveB = TFHE.asEuint32(2);
 
         if (token == tokenA) {
             token.transferFrom(msg.sender, address(this), amount);
-            euint32 oldReserveA = reserveA;
+            euint32 oldReserveB = reserveB;
             reserveA = reserveA + amount;
             reserveB = TFHE.div(totalSupply, TFHE.decrypt(reserveB));
-            tokenA.transfer(msg.sender, reserveB - oldReserveA);
+            // reserveB = TFHE.asEuint32(TFHE.decrypt(totalSupply) / TFHE.decrypt(reserveA));
+            tokenA.transfer(msg.sender, oldReserveB - reserveB);
         } else if (token == tokenB) {
             token.transferFrom(msg.sender, address(this), amount);
-            euint32 oldReserveB = reserveB;
-            reserveB = reserveB + amount;
+            euint32 oldReserveA = reserveA; //50000
+            reserveB = reserveB + amount; //57000
             reserveA = TFHE.div(totalSupply, TFHE.decrypt(reserveB));
-            tokenB.transfer(msg.sender, reserveB - oldReserveB);
+            // reserveA = reserveA - TFHE.asEuint32(TFHE.decrypt(totalSupply) / TFHE.decrypt(reserveB)); //43859
+            tokenB.transfer(msg.sender, oldReserveA - reserveA);
         }
-    }
-
-    euint32 result;
-
-    function setDiv(bytes calldata _amount) public {
-        euint32 amount = TFHE.asEuint32(_amount);
-
-        euint32 div = TFHE.div(amount, 2);
-
-        result = div;
     }
 
     function getTotalSupply(
@@ -79,6 +73,15 @@ contract EncryptedCFMMv1 is EIP712WithModifier {
         bytes calldata signature
     ) public view onlySignedPublicKey(publicKey, signature) returns (bytes memory) {
         return TFHE.reencrypt(totalSupply, publicKey, 0);
+    }
+
+    function getReserve(
+        bytes32 publicKey,
+        bytes calldata signature,
+        EncryptedERC20 token
+    ) public view onlySignedPublicKey(publicKey, signature) returns (bytes memory) {
+        // if (token == tokenB) return TFHE.reencrypt(reserveB, publicKey, 0);
+        return TFHE.reencrypt(reserveA, publicKey, 0);
     }
 
     // Returns the balance of the caller encrypted under the provided public key.

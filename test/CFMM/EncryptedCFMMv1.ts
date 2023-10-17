@@ -77,7 +77,7 @@ describe("EncryptedCFMM", function () {
     expect(totalSupply).to.equal(25_000_000);
   });
 
-  it.only("should do a swap:", async function () {
+  it("should do a swap:", async function () {
     const encryptedAmount = this.instancesERC20A.alice.encrypt32(50000);
     const encryptedLiquidityAmount = this.instancesERC20A.alice.encrypt32(5000);
     const encryptedSwapAmount = this.instancesERC20A.alice.encrypt32(700);
@@ -94,16 +94,21 @@ describe("EncryptedCFMM", function () {
     );
     await transaction.wait();
 
-    const tx = await createTransaction(this.cfmmv1.setDiv, encryptedSwapAmount);
+    const tx = await createTransaction(this.cfmmv1.swap, this.contractAddressERC20A, encryptedSwapAmount);
     await tx.wait();
-    // // Call the method
+    // Call the method
     // const token = this.instancesCFMMv1.alice.getTokenSignature(this.contractAddressCFMMv1) || {
     //   signature: "",
     //   publicKey: "",
     // };
-    // const encryptedBalance = await this.cfmmv1.balanceOf(token.publicKey, token.signature);
+    // const encryptedReserveBalance = await this.cfmmv1.getReserve(
+    //   token.publicKey,
+    //   token.signature,
+    //   this.contractAddressERC20A,
+    // );
     // // Decrypt the balance
-    // const balance = this.instancesCFMMv1.alice.decrypt(this.contractAddressCFMMv1, encryptedBalance);
-    // expect(balance).to.equal(5000); //25_000_000
+    // const balance = this.instancesCFMMv1.alice.decrypt(this.contractAddressCFMMv1, encryptedReserveBalance);
+    // // expect(balance).to.equal(25_000_000); //25_000_000
+    // console.log(balance);
   });
 });

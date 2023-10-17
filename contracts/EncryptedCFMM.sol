@@ -2,19 +2,16 @@
 pragma solidity 0.8.19;
 
 import "fhevm/abstracts/EIP712WithModifier.sol";
-
 import "fhevm/lib/TFHE.sol";
-
-import "hardhat/console.sol";
 
 import { EncryptedERC20 } from "./EncryptedERC20.sol";
 
 contract EncryptedCFMM is EIP712WithModifier {
-    EncryptedERC20 public immutable token0;
-    EncryptedERC20 public immutable token1;
+    EncryptedERC20 public immutable tokenA;
+    EncryptedERC20 public immutable tokenB;
 
-    euint32 internal reserve0;
-    euint32 internal reserve1;
+    euint32 internal reserveA;
+    euint32 internal reserveB;
 
     euint32 private totalSupply;
     mapping(address => euint32) internal balances;
@@ -25,11 +22,11 @@ contract EncryptedCFMM is EIP712WithModifier {
     // The owner of the contract.
     address public contractOwner;
 
-    constructor(address _token0, address _token1) EIP712WithModifier("Authorization token", "1") {
+    constructor(address _tokenA, address _tokenB) EIP712WithModifier("Authorization token", "1") {
         contractOwner = msg.sender;
 
-        token0 = EncryptedERC20(_token0);
-        token1 = EncryptedERC20(_token1);
+        tokenA = EncryptedERC20(_tokenA);
+        tokenB = EncryptedERC20(_tokenB);
     }
 
     function _mint(address _to, euint32 _amount) private {
@@ -42,110 +39,75 @@ contract EncryptedCFMM is EIP712WithModifier {
         totalSupply = totalSupply - _amount;
     }
 
-    function _update(euint32 _reserve0, euint32 _reserve1) private {
-        reserve0 = _reserve0;
-        reserve1 = _reserve1;
+    function _update(euint32 _reserveA, euint32 _reserveB) private {
+        reserveA = _reserveA;
+        reserveB = _reserveB;
     }
 
     function swap(address _tokenIn, bytes calldata encryptedAmountIn) external returns (euint32 amountOut) {
-        euint32 amount = TFHE.asEuint32(encryptedAmountIn);
-        require(_tokenIn == address(token0) || _tokenIn == address(token1), "invalid token");
+        euint32 amountIn = TFHE.asEuint32(encryptedAmountIn);
+        require(_tokenIn == address(tokenA) || _tokenIn == address(tokenB), "invalid token");
         // TFHE.req(TFHE.ge(amount, 0));
-        bool isToken0 = _tokenIn == address(token0);
-        (EncryptedERC20 tokenIn, EncryptedERC20 tokenOut, euint32 reserveIn, euint32 reserveOut) = isToken0
-            ? (token0, token1, reserve0, reserve1)
-            : (token1, token0, reserve1, reserve0);
+        bool istokenA = _tokenIn == address(tokenA);
+        (EncryptedERC20 tokenIn, EncryptedERC20 tokenOut, euint32 reserveIn, euint32 reserveOut) = istokenA
+            ? (tokenA, tokenB, reserveA, reserveB)
+            : (tokenB, tokenA, reserveB, reserveA);
 
-        tokenIn.transferFrom(msg.sender, address(this), amount);
+        tokenIn.transferFrom(msg.sender, address(this), amountIn);
+        // euint32 amountInWithFee = TFHE.div(amountIn * TFHE.asEuint32(97), 100);
+        // amountOut = TFHE.div(TFHE.mul(reserveOut, amountIn), TFHE.decrypt((TFHE.add(reserveIn, amountIn))));
+        amountOut = TFHE.asEuint32(TFHE.decrypt(reserveOut * amountIn) / TFHE.decrypt((TFHE.add(reserveIn, amountIn))));
 
-        euint32 amountInWithFee = TFHE.div(amount, 997);
-        // amountOut = TFHE.div(
-        //     TFHE.mul(reserveOut, amountInWithFee),
-        //     TFHE.decrypt((TFHE.add(reserveIn, amountInWithFee)))
-        // );
-
-        // tokenOut.transfer(msg.sender, amountOut);
-
-        // token0.balances(address(this));
-        // _update(token0.balances(address(this)), token1.balances(address(this)));
+        tokenOut.transfer(msg.sender, amountOut);
+        _update(tokenA.balances(address(this)), tokenB.balances(address(this)));
     }
 
-    function addLiquidity(bytes calldata _amount0, bytes calldata _amount1) public returns (euint32 shares) {
-        console.log("AAAAAAAAAAAAA");
-        euint32 amount0 = TFHE.asEuint32(_amount0);
-        euint32 amount1 = TFHE.asEuint32(_amount1);
+    function addLiquidity(bytes calldata _amountA, bytes calldata _amountB) public returns (euint32 shares) {
+        euint32 amountA = TFHE.asEuint32(_amountA);
+        euint32 amountB = TFHE.asEuint32(_amountB);
 
-        token0.transferFrom(msg.sender, address(this), amount0);
-        token1.transferFrom(msg.sender, address(this), amount1);
+        tokenA.transferFrom(msg.sender, address(this), amountA);
+        tokenB.transferFrom(msg.sender, address(this), amountB);
 
-        // ebool isAboveR0 = TFHE.gt(reserve0, 0);
-        // ebool isAboveR1 = TFHE.gt(reserve1, 0);
+        //Probably can be written without decrypt
+        if (TFHE.decrypt(TFHE.gt(reserveA, 0)) || TFHE.decrypt(TFHE.gt(reserveB, 0))) {
+            require(TFHE.decrypt(TFHE.eq(TFHE.mul(reserveA, amountB), TFHE.decrypt((reserveB * amountA)))));
+        }
 
-        // TFHE.eq(TFHE.mul(reserve0, amount1), TFHE.decrypt((reserve1 * amount0))); //must duble check
+        if (TFHE.decrypt(TFHE.eq(totalSupply, 0))) {
+            shares = TFHE.asEuint32(_sqrt(amountA * amountB));
+        } else {
+            shares = TFHE.min(
+                TFHE.div(TFHE.mul(amountA, totalSupply), TFHE.decrypt(reserveA)),
+                TFHE.div(TFHE.mul(amountB, totalSupply), TFHE.decrypt(reserveB))
+            );
+        }
 
-        // if (reserve0 > 0 || reserve1 > 0) {
-        //     require(reserve0 * amount1 == reserve1 * amount0, "x / y != dx / dy");
-        // }
-
-        //returns (euint32 shares)
-        //euint32 private totalSupply;
-        //euint32 amount0 = TFHE.asEuint32(_amount0);
-        shares = TFHE.cmux(
-            TFHE.eq(totalSupply, 0),
-            TFHE.asEuint32(_sqrt(amount0 * amount1)),
-            TFHE.asEuint32(_sqrt(amount0 * amount1))
-            // TFHE.div(TFHE.mul(amount0, totalSupply), 2)
-        );
-
-        // TFHE.min(TFHE.div(TFHE.mul(amount0, totalSupply), 2), TFHE.div(TFHE.mul(amount1, totalSupply), 2))
-
-        // euint32 sd = TFHE.cmux(
-        //     abc,
-        //     TFHE.div(TFHE.mul(amount0, totalSupply), TFHE.decrypt(reserve0)),
-        //     TFHE.div(TFHE.mul(amount1, totalSupply), TFHE.decrypt(reserve1))
-        // );
-        // shares = TFHE.cmux(
-        //     abc,
-        //     TFHE.div(TFHE.mul(amount0, totalSupply), TFHE.decrypt(reserve0)),
-        //     TFHE.div(TFHE.mul(amount1, totalSupply), TFHE.decrypt(reserve1))
-        // );
-
-        // euint32 ab = TFHE.cmux(TFHE.eq(totalSupply, 0), TFHE.asEuint32(_sqrt(TFHE.mul(amount0, amount1))), sd);
-        // THFE.div(TFHE.mul(amount0,totalSupply),reserve0)
-        // THFE.div(TFHE.mul(amount0,totalSupply),reserve1)
-        // TFHE.min(
-        //     TFHE.div(TFHE.mul(amount0, totalSupply), reserve0),
-        //     THFE.div(TFHE.mul(amount0, totalSupply), reserve1)
-        // );
-        // if (totalSupply == 0) {
-        //     shares = TFHE.asEuint32(_sqrt(amount0 * amount1));
-        // } else {
-        //     shares = _min((amount0 * totalSupply) / reserve0, (amount1 * totalSupply) / reserve1);
-        // }
-        // require(shares > 0, "shares = 0");
+        TFHE.optReq(TFHE.gt(shares, 0));
         _mint(msg.sender, shares);
-        // _update(token0.balances(address(this)), token1.balances(address(this)));
+        _update(tokenA.balances(address(this)), tokenB.balances(address(this)));
     }
 
-    // function removeLiquidity(bytes calldata _shares) external returns (euint32 amount0, euint32 amount1) {
-    //     euint32 bal0 = token0.balances(address(this));
-    //     euint32 bal1 = token1.balances(address(this));
+    function removeLiquidity(bytes calldata _shares) external returns (euint32 amountA, euint32 amountB) {
+        euint32 bal0 = tokenA.balances(address(this));
+        euint32 bal1 = tokenB.balances(address(this));
+        euint32 shares = TFHE.asEuint32(_shares);
 
-    //     amount0 = (_shares * bal0) / totalSupply;
-    //     amount1 = (_shares * bal1) / totalSupply;
-    //     require(amount0 > 0 && amount1 > 0, "amount0 or amount1 = 0");
+        // uint32 _totalSupply = TFHE.decrypt(totalSupply);
+        // amountA = TFHE.div(TFHE.mul(shares, bal0), _totalSupply);
+        // amountB = TFHE.div(TFHE.mul(shares, bal1), _totalSupply);
+        amountA = TFHE.asEuint32(TFHE.decrypt(TFHE.mul(shares, bal0)) / TFHE.decrypt(totalSupply));
+        amountB = TFHE.asEuint32(TFHE.decrypt(TFHE.mul(shares, bal1)) / TFHE.decrypt(totalSupply));
+        // TFHE.optReq(TFHE.gt(amountA, 0));
+        // TFHE.optReq(TFHE.gt(amountB, 0));
+        _burn(msg.sender, shares);
+        _update(bal0 - amountA, bal1 - amountB);
 
-    //     _burn(msg.sender, _shares);
-    //     _update(bal0 - amount0, bal1 - amount1);
-
-    //     token0.transfer(msg.sender, amount0);
-    //     token1.transfer(msg.sender, amount1);
-    // }
+        tokenA.transfer(msg.sender, amountA);
+        tokenB.transfer(msg.sender, amountB);
+    }
 
     function _sqrt(euint32 k) private view returns (uint32 z) {
-        //euint32 z
-        // TFHE.cmux(TFHE.gt(y, 3), val1, TFHE.cmux(TFHE.ne(y, 0)));
-        // euint32 y = TFHE.asEuint32(y);
         uint32 y = TFHE.decrypt(k);
         if (y > 3) {
             z = y;
@@ -157,29 +119,22 @@ contract EncryptedCFMM is EIP712WithModifier {
         } else if (y != 0) {
             z = 1;
         }
-        // return TFHE.asEuint32(z);
-
-        // if (TFHE.gt(y3)) {
-        //     z = y;
-        //     euint32 x = y / 2 + 1;
-        //     while (x < z) {
-        //         z = x;
-        //         x = (y / x + x) / 2;
-        //     }
-        // } else if (y != 0) {
-        //     z = 1;
-        // }
     }
-
-    // function _min(euint32 x, euint32 y) private pure returns (euint32) {
-    //     return x <= y ? x : y;
-    // }
 
     function getTotalSupply(
         bytes32 publicKey,
         bytes calldata signature
     ) public view onlySignedPublicKey(publicKey, signature) returns (bytes memory) {
         return TFHE.reencrypt(totalSupply, publicKey, 0);
+    }
+
+    function getReserve(
+        bytes32 publicKey,
+        bytes calldata signature,
+        EncryptedERC20 tokenReserve
+    ) public view onlySignedPublicKey(publicKey, signature) returns (bytes memory) {
+        if (tokenReserve == tokenA) return TFHE.reencrypt(reserveA, publicKey, 0);
+        if (tokenReserve == tokenB) return TFHE.reencrypt(reserveB, publicKey, 0);
     }
 
     // Returns the balance of the caller encrypted under the provided public key.
